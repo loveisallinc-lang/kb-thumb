@@ -46,6 +46,9 @@ LABEL_PAD_X = 5
 LABEL_FONT = 31
 LABEL_MAX_W = 560
 BADGE_POS = (8, 582)
+# 세로로 아주 긴 상세페이지 이미지면 맨 위(표지 구성 부분)만 잘라 씀
+LONG_RATIO = 1.6       # 세로/가로가 이보다 크면 긴 이미지로 봄
+TOP_CROP_RATIO = 1.15  # 위에서 가로의 1.15배 높이만큼 사용
 
 FONT_CANDIDATES = [
     "/usr/share/fonts/opentype/noto/NotoSansCJK-Medium.ttc",
@@ -90,6 +93,9 @@ def compose(photo, pink, purple, badge, fit):
     panel = Image.new("RGB", (pw_, ph_), PANEL)
     photo = photo.convert("RGBA")
     w, h = photo.size
+    if h / w > LONG_RATIO:
+        photo = photo.crop((0, 0, w, round(w * TOP_CROP_RATIO)))
+        w, h = photo.size
     if fit == "cover":
         s = max(pw_ / w, ph_ / h)
         nw, nh = round(w * s), round(h * s)
