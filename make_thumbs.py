@@ -24,23 +24,32 @@ PAGES_BASE = os.environ.get("PAGES_BASE", "https://loveisallinc-lang.github.io/k
 OUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "img")
 KST = timezone(timedelta(hours=9))
 
-# ---- 디자인 틀 (샘플 받으면 여기 숫자/색만 고치면 됨) ----
+# ---- 디자인 틀 (사장님 샘플 3장 기준, 2026-11-20) ----
+# 위쪽 흰 띠: KPOP BABY 로고(왼쪽) + HANTEO·CIRCLE CHART 로고(오른쪽) = assets/header.png
+# 가운데: 연회색 둥근 판 위에 앨범 사진 (cover면 판을 꽉 채움, contain이면 여백 두고 가운데)
+# 오른쪽 위: 분홍 라벨 줄들 → 보라 라벨 줄들 (오른쪽 끝에 붙고, 글자 길이만큼)
+# 왼쪽 아래: 보라 톱니 '+Online 特典' 배지 = assets/badge.png
+ASSETS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets")
 SIZE = 800
 BG = (255, 255, 255)
-PINK = (255, 92, 160)
-PURPLE = (124, 77, 255)
-BADGE = (230, 30, 80)
+PANEL = (242, 242, 242)
+PANEL_BOX = (19, 92, 785, 787)   # 왼, 위, 오른, 아래
+PANEL_R = 14
+PHOTO_PAD = 40                   # contain일 때 판 안쪽 여백
+PINK = (255, 0, 165)
+PURPLE = (221, 0, 255)
 TEXT = (255, 255, 255)
-MARGIN = 24
-LABEL_H = 58          # 라벨 한 줄 높이
-LABEL_GAP = 10
-LABEL_FONT = 30
-BADGE_D = 150         # 특전 배지 지름
-BADGE_TEXT = ["特典", "付き"]
+LABEL_TOP = 94
+LABEL_H = 40
+LABEL_PITCH = 46
+LABEL_PAD_X = 5
+LABEL_FONT = 31
+LABEL_MAX_W = 560
+BADGE_POS = (8, 582)
 
 FONT_CANDIDATES = [
-    "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc",
-    "/usr/share/fonts/opentype/noto/NotoSansCJK-Black.ttc",
+    "/usr/share/fonts/opentype/noto/NotoSansCJK-Medium.ttc",
+    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
     "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
 ]
 
@@ -61,54 +70,58 @@ def fit_font(draw, text, max_w, size):
         f = font(size)
         if draw.textlength(text, font=f) <= max_w:
             return f
-        size -= 2
+        size -= 1
     return font(size)
 
 
-def draw_label(draw, x, y, text, color, max_w):
-    f = fit_font(draw, text, max_w - 40, LABEL_FONT)
-    w = min(max_w, int(draw.textlength(text, font=f)) + 44)
-    draw.rounded_rectangle([x, y, x + w, y + LABEL_H], radius=LABEL_H // 2, fill=color)
-    draw.text((x + w / 2, y + LABEL_H / 2), text, font=f, fill=TEXT, anchor="mm")
+def draw_label(draw, y, text, color):
+    f = fit_font(draw, text, LABEL_MAX_W - 2 * LABEL_PAD_X, LABEL_FONT)
+    w = int(draw.textlength(text, font=f)) + 2 * LABEL_PAD_X
+    x = SIZE - w
+    draw.rectangle([x, y, SIZE, y + LABEL_H], fill=color)
+    draw.text((x + LABEL_PAD_X, y + LABEL_H / 2 + 1), text, font=f, fill=TEXT, anchor="lm",
+              stroke_width=0)
 
 
 def compose(photo, pink, purple, badge, fit):
     canvas = Image.new("RGB", (SIZE, SIZE), BG)
-    n_labels = len(pink) + len(purple)
-    label_block = n_labels * (LABEL_H + LABEL_GAP)
-    area_w = SIZE - 2 * MARGIN
-    area_h = SIZE - 2 * MARGIN - label_block
+    l, t, r, b = PANEL_BOX
+    pw_, ph_ = r - l, b - t
+    panel = Image.new("RGB", (pw_, ph_), PANEL)
     photo = photo.convert("RGBA")
-    pw, ph = photo.size
+    w, h = photo.size
     if fit == "cover":
-        s = max(area_w / pw, area_h / ph)
+        s = max(pw_ / w, ph_ / h)
+        nw, nh = round(w * s), round(h * s)
+        im = photo.resize((nw, nh), Image.LANCZOS)
+        cx, cy = (nw - pw_) // 2, (nh - ph_) // 2
+        im = im.crop((cx, cy, cx + pw_, cy + ph_))
+        panel.paste(im, (0, 0), im)
     else:
-        s = min(area_w / pw, area_h / ph)
-    nw, nh = int(pw * s), int(ph * s)
-    photo = photo.resize((nw, nh), Image.LANCZOS)
-    left = (nw - area_w) // 2 if nw > area_w else 0
-    top = (nh - area_h) // 2 if nh > area_h else 0
-    photo = photo.crop((left, top, left + min(nw, area_w), top + min(nh, area_h)))
-    px = MARGIN + (area_w - photo.size[0]) // 2
-    py = MARGIN + (area_h - photo.size[1]) // 2
-    canvas.paste(photo, (px, py), photo)
+        aw, ah = pw_ - 2 * PHOTO_PAD, ph_ - 2 * PHOTO_PAD
+        s = min(aw / w, ah / h)
+        nw, nh = round(w * s), round(h * s)
+        im = photo.resize((nw, nh), Image.LANCZOS)
+        panel.paste(im, ((pw_ - nw) // 2, (ph_ - nh) // 2), im)
+    rmask = Image.new("L", (pw_, ph_), 0)
+    ImageDraw.Draw(rmask).rounded_rectangle([0, 0, pw_ - 1, ph_ - 1], radius=PANEL_R, fill=255)
+    canvas.paste(panel, (l, t), rmask)
+
+    header = Image.open(os.path.join(ASSETS, "header.png")).convert("RGB")
+    canvas.paste(header, (0, 0))
 
     d = ImageDraw.Draw(canvas)
-    y = SIZE - MARGIN - label_block + LABEL_GAP
-    for t in pink:
-        draw_label(d, MARGIN, y, t, PINK, area_w)
-        y += LABEL_H + LABEL_GAP
-    for t in purple:
-        draw_label(d, MARGIN, y, t, PURPLE, area_w)
-        y += LABEL_H + LABEL_GAP
+    y = LABEL_TOP
+    for txt in pink:
+        draw_label(d, y, txt, PINK)
+        y += LABEL_PITCH
+    for txt in purple:
+        draw_label(d, y, txt, PURPLE)
+        y += LABEL_PITCH
 
     if badge:
-        bx, by = SIZE - MARGIN - BADGE_D, MARGIN
-        d.ellipse([bx, by, bx + BADGE_D, by + BADGE_D], fill=BADGE, outline=(255, 255, 255), width=5)
-        f = font(40)
-        cx, cy = bx + BADGE_D / 2, by + BADGE_D / 2
-        d.text((cx, cy - 22), BADGE_TEXT[0], font=f, fill=TEXT, anchor="mm")
-        d.text((cx, cy + 24), BADGE_TEXT[1], font=f, fill=TEXT, anchor="mm")
+        bimg = Image.open(os.path.join(ASSETS, "badge.png")).convert("RGBA")
+        canvas.paste(bimg, BADGE_POS, bimg)
     return canvas
 
 
