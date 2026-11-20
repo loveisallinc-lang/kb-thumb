@@ -16,7 +16,7 @@ import traceback
 from datetime import datetime, timedelta, timezone
 
 import requests
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageChops, ImageDraw, ImageFont
 
 SHEET_ID = os.environ.get("SHEET_ID", "13ZYdAxgHANOLGPnoi5biB-QdE5M25wFuEQmL8QzKNZo")
 TAB = "대표이미지_작업"
@@ -109,7 +109,15 @@ def compose(photo, pink, purple, badge, fit):
         s = min(aw / w, ah / h)
         nw, nh = round(w * s), round(h * s)
         im = photo.resize((nw, nh), Image.LANCZOS)
-        panel.paste(im, ((pw_ - nw) // 2, (ph_ - nh) // 2), im)
+        ox, oy = (pw_ - nw) // 2, (ph_ - nh) // 2
+        rgb = im.convert("RGB")
+        corners = [rgb.getpixel(c) for c in ((2, 2), (nw - 3, 2), (2, nh - 3), (nw - 3, nh - 3))]
+        if all(min(c) >= 240 for c in corners):
+            # 흰 배경 상품 사진이면 곱하기 합성: 흰 바탕이 회색 판에 자연스럽게 녹아듦
+            region = panel.crop((ox, oy, ox + nw, oy + nh))
+            panel.paste(ImageChops.multiply(region, rgb), (ox, oy))
+        else:
+            panel.paste(im, (ox, oy), im)
     rmask = Image.new("L", (pw_, ph_), 0)
     ImageDraw.Draw(rmask).rounded_rectangle([0, 0, pw_ - 1, ph_ - 1], radius=PANEL_R, fill=255)
     canvas.paste(panel, (l, t), rmask)
