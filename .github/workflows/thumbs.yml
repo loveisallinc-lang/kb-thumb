@@ -1,0 +1,44 @@
+name: 대표이미지 생성
+
+on:
+  schedule:
+    - cron: "17 * * * *"   # 매시 17분 (UTC 기준이지만 매시라 동일)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: thumbs
+  cancel-in-progress: false
+
+jobs:
+  make:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: 일본어 글꼴 설치
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq fonts-noto-cjk
+      - run: pip install -r requirements.txt
+      - name: 이미지 만들기
+        env:
+          GOOGLE_SA_JSON: ${{ secrets.GOOGLE_SA_JSON }}
+        run: |
+          if [ -z "$GOOGLE_SA_JSON" ]; then
+            echo "::error::GOOGLE_SA_JSON 비밀값이 아직 없습니다. Settings > Secrets and variables > Actions 에서 추가해 주세요."
+            exit 1
+          fi
+          python make_thumbs.py
+      - name: 새 이미지 올리기
+        run: |
+          git config user.name "kb-thumb bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add img
+          if git diff --cached --quiet; then echo "새 이미지 없음"; exit 0; fi
+          git commit -m "대표이미지 생성 $(TZ=Asia/Seoul date '+%Y-%m-%d %H:%M')"
+          git push
