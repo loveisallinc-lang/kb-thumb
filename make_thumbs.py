@@ -12,6 +12,7 @@ import json
 import os
 import re
 import sys
+import time
 import traceback
 from datetime import datetime, timedelta, timezone
 
@@ -175,8 +176,7 @@ UA = {"User-Agent": "Mozilla/5.0 kb-thumb"}
 def resolve_source(url):
     """애플뮤직 상품 페이지 주소면 그 상품의 대표 사진(정사각 표지) 주소로 바꿔 준다."""
     if "applemusic.co.kr" in url and "shopdetail" in url:
-        r = requests.get(url, timeout=30, headers=UA)
-        r.raise_for_status()
+        r = get_with_retry(url)
         m = re.search(r"/shopimages/applemusic/(\d{8,})\.jpg", r.text)
         if not m:
             raise ValueError("애플뮤직 상품 페이지에서 대표 사진을 못 찾음")
@@ -184,9 +184,34 @@ def resolve_source(url):
     return url
 
 
+def url_variants(url):
+    out = [url]
+    if "://www.applemusic.co.kr" in url:
+        out.append(url.replace("://www.", "://"))
+        out.append(url.replace("https://", "http://"))
+    return out
+
+
+def get_with_retry(url, tries=3):
+    last = None
+    for attempt in range(tries):
+        for u in url_variants(url):
+            try:
+                r = requests.get(u, timeout=(10, 30), headers=UA)
+                r.raise_for_status()
+                return r
+            except requests.HTTPError as e:
+                if e.response is not None and e.response.status_code == 404:
+                    raise
+                last = e
+            except requests.RequestException as e:
+                last = e
+        time.sleep(5 * (attempt + 1))
+    raise last
+
+
 def fetch_image(url):
-    r = requests.get(resolve_source(url), timeout=30, headers=UA)
-    r.raise_for_status()
+    r = get_with_retry(resolve_source(url))
     return Image.open(io.BytesIO(r.content))
 
 
@@ -229,7 +254,12 @@ def main():
             print("OK", code, url)
         except Exception as e:  # 한 줄 실패해도 나머지는 계속
             failed += 1
-            msg = f"{type(e).__name__}: {e}"[:200]
+            if isinstance(e, (requests.ConnectionError, requests.Timeout)):
+                msg = "사진 사이트 접속 실패 — 다음 정각 17분에 자동 재시도"
+            elif isinstance(e, requests.HTTPError) and e.response is not None and e.response.status_code == 404:
+                msg = "사진 주소가 없음(404) — 앨범사진 주소 확인 필요"
+            else:
+                msg = f"{type(e).__name__}: {e}"[:150]
             errors.append(f"{code}: {msg}")
             sh.put(f"{TAB}!H{i}", [[f"오류 {stamp} — {msg}"]])
             traceback.print_exc()
