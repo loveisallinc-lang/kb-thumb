@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: "17 * * * *"   # 매시 17분 (UTC 기준이지만 매시라 동일)
   workflow_dispatch:
+    inputs:
+      test_url:
+        description: "(선택) 시트 대신 이 주소로 시험 이미지 한 장만 만들기"
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -28,8 +33,9 @@ jobs:
       - name: 이미지 만들기
         env:
           GOOGLE_SA_JSON: ${{ secrets.GOOGLE_SA_JSON }}
+          TEST_URL: ${{ github.event.inputs.test_url }}
         run: |
-          if [ -z "$GOOGLE_SA_JSON" ]; then
+          if [ -z "$GOOGLE_SA_JSON" ] && [ -z "$TEST_URL" ]; then
             echo "::error::GOOGLE_SA_JSON 비밀값이 아직 없습니다. Settings > Secrets and variables > Actions 에서 추가해 주세요."
             exit 1
           fi

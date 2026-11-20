@@ -10,6 +10,7 @@
 import io
 import json
 import os
+import re
 import sys
 import traceback
 from datetime import datetime, timedelta, timezone
@@ -160,8 +161,23 @@ class Sheets:
         r.raise_for_status()
 
 
+UA = {"User-Agent": "Mozilla/5.0 kb-thumb"}
+
+
+def resolve_source(url):
+    """애플뮤직 상품 페이지 주소면 그 상품의 대표 사진(정사각 표지) 주소로 바꿔 준다."""
+    if "applemusic.co.kr" in url and "shopdetail" in url:
+        r = requests.get(url, timeout=30, headers=UA)
+        r.raise_for_status()
+        m = re.search(r"/shopimages/applemusic/(\d{8,})\.jpg", r.text)
+        if not m:
+            raise ValueError("애플뮤직 상품 페이지에서 대표 사진을 못 찾음")
+        return f"https://www.applemusic.co.kr/shopimages/applemusic/{m.group(1)}.jpg"
+    return url
+
+
 def fetch_image(url):
-    r = requests.get(url, timeout=30, headers={"User-Agent": "Mozilla/5.0 kb-thumb"})
+    r = requests.get(resolve_source(url), timeout=30, headers=UA)
     r.raise_for_status()
     return Image.open(io.BytesIO(r.content))
 
@@ -170,7 +186,19 @@ def safe_name(code):
     return "".join(c for c in code if c.isalnum() or c in "-_") or "noname"
 
 
+def test_mode(url):
+    """시트를 건드리지 않고 한 장만 만들어 보기 (img/_test.jpg)."""
+    print("source:", resolve_source(url))
+    img = compose(fetch_image(url), ["TEST LABEL"], ["特典選択 TEST"], True, "contain")
+    os.makedirs(OUT_DIR, exist_ok=True)
+    img.save(os.path.join(OUT_DIR, "_test.jpg"), "JPEG", quality=92)
+    print("OK _test.jpg")
+    return 0
+
+
 def main():
+    if os.environ.get("TEST_URL"):
+        return test_mode(os.environ["TEST_URL"])
     sh = Sheets()
     rows = sh.get(f"{TAB}!A2:I")
     now = datetime.now(KST)
