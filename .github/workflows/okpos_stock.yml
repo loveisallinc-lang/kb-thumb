@@ -1,0 +1,42 @@
+name: 오케이포스 현재고 가져오기
+
+on:
+  schedule:
+    - cron: "40 23 * * *"   # 매일 오전 8:40 (한국시간). 깃헙 예약은 늦게 돌 수 있어 Claude 예약 작업이 직접 실행도 함
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "1이면 시트에 쓰지 않고 개수만 확인"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: okpos-stock
+  cancel-in-progress: false
+
+jobs:
+  stock:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements-okpos.txt
+      - run: python -m playwright install --with-deps chromium
+      - name: 현재고 가져와서 시트에 쓰기
+        env:
+          OKPOS_ID: ${{ secrets.OKPOS_ID }}
+          OKPOS_PW: ${{ secrets.OKPOS_PW }}
+          GOOGLE_SA_JSON: ${{ secrets.GOOGLE_SA_JSON }}
+          DRY_RUN: ${{ github.event.inputs.dry_run }}
+        run: |
+          if [ -z "$OKPOS_ID" ] || [ -z "$OKPOS_PW" ]; then
+            echo "::error::OKPOS_ID / OKPOS_PW 비밀값이 아직 없습니다. Settings > Secrets and variables > Actions 에서 추가해 주세요."
+            exit 1
+          fi
+          python okpos_stock.py
