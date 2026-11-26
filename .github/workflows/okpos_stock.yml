@@ -1,8 +1,6 @@
-name: 오케이포스 현재고 가져오기
+name: 오케이포스 현재고 가져오기 (수동 시험용 - 해외 서버 접속 차단으로 실제 실행은 사장님 PC의 pc/ 폴더)
 
 on:
-  schedule:
-    - cron: "40 23 * * *"   # 매일 오전 8:40 (한국시간). 깃헙 예약은 늦게 돌 수 있어 Claude 예약 작업이 직접 실행도 함
   workflow_dispatch:
     inputs:
       dry_run:
