@@ -89,7 +89,15 @@ def fetch_okpos():
         page = ctx.new_page()
         page.on("dialog", lambda d: d.accept())
 
-        page.goto(f"{BASE}/login/login_form.jsp", wait_until="domcontentloaded")
+        for attempt in range(3):
+            try:
+                page.goto(f"{BASE}/login/login_form.jsp", wait_until="domcontentloaded", timeout=90000)
+                break
+            except Exception:
+                log(f"로그인 화면 접속 실패 {attempt + 1}/3")
+                if attempt == 2:
+                    raise SystemExit("오케이포스 로그인 화면에 접속하지 못했습니다(깃헙 서버에서 접속이 막혔을 수 있음).")
+                time.sleep(10)
         page.wait_for_selector("[name=user_id]", timeout=30000)
         page.fill("[name=user_id]", uid)
         page.fill("[name=user_pwd]", pwd)
