@@ -14,6 +14,7 @@ const STORE = "1vWFB4rsdSX222ZPdiBlGNmLFVdezURCq8EEhxTJwNyM";
 const LISTING = "13ZYdAxgHANOLGPnoi5biB-QdE5M25wFuEQmL8QzKNZo";
 const ORDER = "1tHVsLvcuaU3m5-wJfbuqeWTKsXa6OIk5fZWHGw87Btk";
 const PLAN_TAB = "악성재고_큐텐";
+const MIN_STOCK = 5; // 매장 재고 이 개수 미만이면 큐텐에 올리지 않음
 const HEAD = ["날짜", "바코드", "상품명", "구분", "등급", "매장재고", "판매수량", "큐텐 코드", "큐텐 행", "이전 판매수량", "할 일", "상태", "메모"];
 const DRY = process.argv.includes("--dry");
 const EXCLUDE = /탑로더|카드홀더|건전지|밧데리|배터리/;
@@ -136,6 +137,11 @@ async function main() {
     } else if (t.qty > 0) {
       act = "새 리스팅"; memo = `매장가 ${t.price}`;
     } else continue; // 판매수량 0이고 리스팅도 없음
+    // 사장님 규칙(2026-11-27): 악성재고는 매장 재고 5개 이상일 때만 큐텐에 올린다.
+    if (t.stock < MIN_STOCK) {
+      if (!code) continue; // 새 리스팅 안 함
+      act = "5개 미만"; memo = `매장 재고 ${t.stock}개(5개 미만) → 수량 안 바꿈. 이미 있는 리스팅은 사장님 확인`;
+    }
     if (act === "유지") continue;
     out.push([day, t.bc, t.name, t.kind, t.grade, t.stock, t.qty, code, row, prev, act, "대기", memo]);
   }
@@ -179,7 +185,7 @@ async function main() {
   if (old.length + 1 > all.length) await clearVals(LISTING, `'${PLAN_TAB}'!A${all.length + 1}:M${old.length + 1}`);
 
   const cnt = (a) => out.filter((r) => r[10] === a).length;
-  const summary = `수량 변경 ${cnt("수량 변경")} / 판매중지 ${cnt("판매중지")} / 새 리스팅 ${cnt("새 리스팅")} / 확인 필요 ${cnt("확인 필요")}`;
+  const summary = `수량 변경 ${cnt("수량 변경")} / 5개 미만 ${cnt("5개 미만")} / 판매중지 ${cnt("판매중지")} / 새 리스팅 ${cnt("새 리스팅")} / 확인 필요 ${cnt("확인 필요")}`;
   log(`대상 ${target.size}개, ${summary}`);
   await putVals(LISTING, "'자동화_상태'!A6:E6", [["악성재고 → 큐텐 계획", kstNow(), summary,
     out.length ? "계획표('악성재고_큐텐' 탭) 확인 후 '반영'이라고 말하기" : "없음",
