@@ -250,6 +250,11 @@ async function main() {
   log(`현재고 탭 ${n}행 갱신 (이전 ${oldN}행), 현재고 합계 ${total}`);
   await setStatus(`성공: ${n}개 상품 갱신 (현재고 합계 ${total})`, "없음");
   if (!DRY) fs.writeFileSync(STATE, today());
+  // 이어서 악성재고 → 큐텐 계획표 만들기(큐텐 반영은 하지 않음)
+  if (!DRY) {
+    try { execFileSync(process.execPath, [path.join(DIR, "slowstock_plan.mjs")], { stdio: "inherit", timeout: 300000 }); }
+    catch (e) { log("계획표 실패:", e.message); }
+  }
 }
 
 main().catch(async (e) => { log("오류:", e.message); await setStatus(`오류: ${e.message}`, "확인 필요"); process.exitCode = 1; });
