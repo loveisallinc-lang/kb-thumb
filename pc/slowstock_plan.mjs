@@ -117,7 +117,7 @@ async function main() {
     let code = "", row = "", prev = "", act = "", memo = "";
     const opt = byOpt.get(t.bc);
     if (byCode.has("DM" + t.bc)) { code = "DM" + t.bc; row = byCode.get(code); }
-    else if (byCode.has(t.bc)) { code = t.bc; row = byCode.get(code); }
+    else if (/^A\d+A$/.test(t.bc) && byCode.has(t.bc)) { code = t.bc; row = byCode.get(code); }
     else if (opt) { code = opt.code; row = opt.row; }
     else if (/^A\d{8,14}A$/.test(t.bc) && byCode.has("DM" + t.bc.slice(1, -1))) { code = "DM" + t.bc.slice(1, -1); row = byCode.get(code); memo = "러비솔 바코드 → 같은 상품 리스팅"; }
     if (code) {
@@ -127,6 +127,9 @@ async function main() {
       else act = String(t.qty) === prev ? "유지" : "수량 변경";
       if (opt && code === opt.code) memo = "묶음 리스팅 옵션";
       if (prev === "모름") memo = (memo ? memo + ", " : "") + "현재 큐텐 수량 모름";
+    } else if (byCode.has(t.bc)) {
+      code = t.bc; row = byCode.get(code); prev = "모름";
+      act = "확인 필요"; memo = "바코드를 코드로 쓴 일반 리스팅이 있음 → 이걸로 수량만 바꿀지 확인";
     } else if (t.kind === "음반" && albumCode.has(t.bc) && byCode.has(albumCode.get(t.bc))) {
       code = albumCode.get(t.bc); row = byCode.get(code); prev = "모름";
       act = "확인 필요"; memo = "신보로 올린 일반 리스팅이 있음 → 매장 재고분을 따로 올릴지/수량만 바꿀지 확인";
@@ -145,6 +148,14 @@ async function main() {
     if (prev === "0") return;
     const it = items.get(bc);
     const st = storeStock.has(bc) ? storeStock.get(bc) : "";
+    if (!it && st !== "" && st >= 2) {
+      // 악성재고 목록에서 빠졌지만 매장에 재고가 있음 → 판매 계속(50%)할지 사장님 확인
+      const q = Math.floor(st / 2);
+      if (String(q) === prev) return;
+      out.push([day, bc, name, "", "", st, q, code, row, prev, "확인 필요", "대기",
+        `악성재고 목록에서 빠졌지만 매장 재고 ${st} → 판매수량 ${q}로 계속 팔지, 판매중지할지 확인`]);
+      return;
+    }
     const why = it ? `대상 아님(${it.kind}/${it.grade || "등급 없음"})` : "악성재고 목록에서 빠짐";
     out.push([day, bc, it ? it.name : name, it ? it.kind : "", it ? it.grade : "", st, 0, code, row, prev, "판매중지", "대기", `${why}, 매장 재고 ${st === "" ? "모름" : st}`]);
   };
