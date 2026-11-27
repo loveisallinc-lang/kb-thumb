@@ -96,7 +96,29 @@ async function fetchOkpos() {
     catch { throw new Error("로그인 실패(아이디/비밀번호 확인 → '비밀번호_저장.bat' 다시 실행)"); }
     log("로그인 성공");
 
-    await page.goto(`${BASE}/stock/stock/cur010.jsp`, { waitUntil: "domcontentloaded" });
+    // 현재고현황은 반드시 top_frame 안에서 메뉴로 연다.
+    // (cur010.jsp 주소로 바로 가면 상위 창 함수·토큰이 없어 '검색중입니다'에서 멈춤)
+    await page.waitForTimeout(3000);
+    const clickText = async (text) => {
+      for (const f of page.frames()) {
+        try {
+          const loc = f.locator(`text="${text}"`).first();
+          if (await loc.count()) { await loc.click({ timeout: 5000, force: true }); return true; }
+        } catch {}
+      }
+      return false;
+    };
+    let opened = false;
+    for (let i = 0; i < 3 && !opened; i++) {
+      await clickText("재고관리"); await page.waitForTimeout(1000);
+      await clickText("재고현황"); await page.waitForTimeout(1000);
+      await clickText("현재고현황"); await page.waitForTimeout(3000);
+      opened = page.frames().some((f) => f.url().includes("cur011"));
+    }
+    if (!opened) {
+      log("메뉴로 열기 실패 → 주소로 직접 열기 시도");
+      await page.goto(`${BASE}/stock/stock/cur010.jsp`, { waitUntil: "domcontentloaded" });
+    }
     let frame = null;
     for (let i = 0; i < 60; i++) {
       frame = page.frames().find((f) => f.url().includes("cur011"));
