@@ -18,6 +18,8 @@ const MIN_STOCK = 5; // 매장 재고 이 개수 미만이면 큐텐에 올리�
 const HEAD = ["날짜", "바코드", "상품명", "구분", "등급", "매장재고", "판매수량", "큐텐 코드", "큐텐 행", "이전 판매수량", "할 일", "상태", "메모"];
 const DRY = process.argv.includes("--dry");
 const EXCLUDE = /탑로더|카드홀더|건전지|밧데리|배터리/;
+// 사장님 규칙(2026-11-27): 악성재고는 음반과 MD(케이팝 굿즈)만. 문구(캐릭터 스티커·카드 등)와 응원봉은 올리지 않음
+const STATIONERY = /커비|다마고치|산리오|포켓몬|미피|바비|모프샌드|에스더버니|케로로|티니핑|하츄핑|스누피|블루록|흐리멍텅|폼폼푸린|쿠로미|헬로키티|시나모롤|포차코|마이멜로디|한교동/;
 const LOG = path.join(DIR, "log.txt");
 
 const kstNow = () => new Date(Date.now() + 9 * 3600e3).toISOString().replace("T", " ").slice(0, 16);
@@ -65,7 +67,7 @@ async function main() {
   const eligible = (it) => {
     if (EXCLUDE.test(it.name)) return false;
     if (it.kind === "음반") return it.grade === "악성";
-    if (it.kind === "굿즈" || it.kind === "응원봉") return ["악성", "주의", "과재고"].includes(it.grade);
+    if (it.kind === "굿즈") return !STATIONERY.test(it.name) && ["악성", "주의", "과재고"].includes(it.grade);
     return false;
   };
   const target = new Map();
