@@ -119,12 +119,14 @@ async function main() {
     if (byCode.has("DM" + t.bc)) { code = "DM" + t.bc; row = byCode.get(code); }
     else if (byCode.has(t.bc)) { code = t.bc; row = byCode.get(code); }
     else if (opt) { code = opt.code; row = opt.row; }
+    else if (/^A\d{8,14}A$/.test(t.bc) && byCode.has("DM" + t.bc.slice(1, -1))) { code = "DM" + t.bc.slice(1, -1); row = byCode.get(code); memo = "러비솔 바코드 → 같은 상품 리스팅"; }
     if (code) {
-      seen.add(t.bc);
+      seen.add(t.bc); if (/^A\d+A$/.test(t.bc)) seen.add(t.bc.slice(1, -1));
       prev = prevOf(t.bc, opt);
       if (t.qty === 0) act = prev === "0" ? "유지" : "판매중지";
       else act = String(t.qty) === prev ? "유지" : "수량 변경";
       if (opt && code === opt.code) memo = "묶음 리스팅 옵션";
+      if (prev === "모름") memo = (memo ? memo + ", " : "") + "현재 큐텐 수량 모름";
     } else if (t.kind === "음반" && albumCode.has(t.bc) && byCode.has(albumCode.get(t.bc))) {
       code = albumCode.get(t.bc); row = byCode.get(code); prev = "모름";
       act = "확인 필요"; memo = "신보로 올린 일반 리스팅이 있음 → 매장 재고분을 따로 올릴지/수량만 바꿀지 확인";
@@ -171,7 +173,11 @@ async function main() {
   await putVals(LISTING, "'자동화_상태'!A6:E6", [["악성재고 → 큐텐 계획", kstNow(), summary,
     out.length ? "계획표('악성재고_큐텐' 탭) 확인 후 '반영'이라고 말하기" : "없음",
     "현재고 가져오기 성공 직후 PC에서 자동 (큐텐 반영은 사장님 OK 후)"]], "USER_ENTERED");
-  if (DRY) for (const r of out.slice(0, 40)) console.log(r.join(" | "));
+  if (DRY) {
+    const pick = process.argv.find((a) => a.startsWith("--show="));
+    const want = pick ? pick.slice(7) : "";
+    for (const r of out.filter((r) => !want || r[10] === want).slice(0, 60)) console.log(r.join(" | "));
+  }
 }
 
 main().catch(async (e) => {
