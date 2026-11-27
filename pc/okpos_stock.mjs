@@ -109,6 +109,18 @@ async function fetchOkpos() {
       return false;
     };
     let opened = false;
+    // 1순위: 상단 메뉴(cswm)의 '현재고현황' 칸을 JS로 클릭 (2026-11-27 PC에서 확인: 3,106행 1초)
+    for (let i = 0; i < 3 && !opened; i++) {
+      try {
+        await page.evaluate(() => {
+          const e = [...document.querySelectorAll("td.cswmItem")].find((x) => x.textContent.trim() === "현재고현황");
+          if (e) e.click();
+        });
+      } catch {}
+      await page.waitForTimeout(4000);
+      opened = page.frames().some((f) => f.url().includes("cur011"));
+    }
+    if (opened) log("메뉴(JS 클릭)로 현재고현황 열림");
     for (let i = 0; i < 3 && !opened; i++) {
       await clickText("재고관리"); await page.waitForTimeout(1000);
       await clickText("재고현황"); await page.waitForTimeout(1000);
@@ -140,7 +152,7 @@ async function fetchOkpos() {
     }, PAGE_SIZE);
 
     let last = -1, stable = 0;
-    for (let i = 0; i < 180; i++) {
+    for (let i = 0; i < 600; i++) {
       await page.waitForTimeout(1000);
       const n = await frame.evaluate("window.mySheet1.RowCount ? mySheet1.RowCount() : 0");
       stable = n === last && n > 0 ? stable + 1 : 0;
